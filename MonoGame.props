@@ -2,7 +2,7 @@
   <PropertyGroup>
     <PackageIcon>Icon.png</PackageIcon>
     <PackageProjectUrl>https://www.monogame.net/</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/MonoGame/MonoGame</RepositoryUrl>
+    <RepositoryUrl>https://github.com/ryancheung/MonoGame</RepositoryUrl>
     <Authors>MonoGame Team</Authors>
     <PackageLicenseExpression>MS-PL</PackageLicenseExpression>
   </PropertyGroup>
