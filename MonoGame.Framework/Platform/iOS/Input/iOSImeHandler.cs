@@ -1,104 +1,94 @@
 ﻿using CoreGraphics;
-using Foundation;
-using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Input.Touch;
 using System;
 using UIKit;
 
 namespace Microsoft.Xna.Framework.iOS.Input
 {
-    internal class UIBackwardsTextField : UITextField
-    {
-        // A delegate type for hooking up change notifications.
-        public delegate void DeleteBackwardEventHandler(object sender, EventArgs e);
-
-        // An event that clients can use to be notified whenever the
-        // elements of the list change.
-        public event DeleteBackwardEventHandler DeleteBackwardPressed;
-        public event EventHandler TextChanged;
-        public event EventHandler TextCompositionChanged;
-
-        private bool UIBackwardsTextField_ShouldChangeCharacters(UITextField textField, NSRange range, string replacementString)
-        {
-            if (textField.IsFirstResponder)
-            {
-                if (textField.TextInputMode == null)
-                    return false;
-            }
-
-            return true;
-        }
-
-        public UIBackwardsTextField(CGRect rect) : base(rect)
-        {
-            this.EditingChanged += UIBackwardsTextField_EditingChanged;
-            this.ShouldChangeCharacters += UIBackwardsTextField_ShouldChangeCharacters;
-        }
-
-        private void UIBackwardsTextField_EditingChanged(object sender, EventArgs e)
-        {
-            if (MarkedTextRange == null || MarkedTextRange.IsEmpty)
-            {
-                if (TextChanged != null)
-                    TextChanged(null, null);
-            }
-            else
-            {
-                if (TextCompositionChanged != null)
-                    TextCompositionChanged(null, null);
-            }
-        }
-
-        public void OnDeleteBackwardPressed()
-        {
-            if (DeleteBackwardPressed != null)
-                DeleteBackwardPressed(null, null);
-        }
-
-        public override void DeleteBackward()
-        {
-            base.DeleteBackward();
-            OnDeleteBackwardPressed();
-        }
-    }
-
     public class iOSImeHandler : ImmService
     {
         private UIWindow mainWindow;
         private UIViewController gameViewController;
 
-        private UIBackwardsTextField textField;
+        private UIStackView _inputPanel;
+
+        private UIButton _okButton;
+        private UITextField _textField;
 
         private int _virtualKeyboardHeight;
+
+        private CGRect _bounds;
+
+        public const int InputPanelHeight = 40;
+
 
         public iOSImeHandler(Game game)
         {
             mainWindow = game.Services.GetService<UIWindow>();
             gameViewController = game.Services.GetService<UIViewController>();
 
-            textField = new UIBackwardsTextField(new CGRect(0, -400, 200, 40));
-            textField.KeyboardType = UIKeyboardType.Default;
-            textField.ReturnKeyType = UIReturnKeyType.Done;
-            textField.DeleteBackwardPressed += TextField_DeleteBackward;
-            textField.TextChanged += TextField_TextChanged;
-            textField.TextCompositionChanged += TextField_TextCompositionChanged;
-            textField.ShouldReturn += TextField_ShouldReturn;
+            _bounds = gameViewController.View.Bounds;
 
-            gameViewController.Add(textField);
+            _inputPanel = new UIStackView
+            {
+                Axis = UILayoutConstraintAxis.Horizontal,
+                Alignment = UIStackViewAlignment.Fill,
+                Distribution = UIStackViewDistribution.Fill,
+                Spacing = 0,
+                Frame = new CGRect(0, _bounds.Height - InputPanelHeight, _bounds.Width, InputPanelHeight)
+            };
+
+            var bgView = new UIView(frame: new CGRect(0, 0, _bounds.Width, InputPanelHeight));
+            bgView.BackgroundColor = UIColor.White;
+            bgView.AutoresizingMask = UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleHeight;
+            _inputPanel.AddSubview(bgView);
+
+            _textField = new UITextField(new CGRect(0, 0, _bounds.Width - 80, InputPanelHeight));
+            _textField.Text = CurrentResultText;
+            _textField.KeyboardType = UIKeyboardType.Default;
+            _textField.ReturnKeyType = UIReturnKeyType.Done;
+            _textField.AutocapitalizationType = UITextAutocapitalizationType.None;
+            _textField.ShouldReturn += TextField_ShouldReturn;
+            _textField.EditingChanged += (o, e) =>
+            {
+                if (ResultTextUpdated != null)
+                    ResultTextUpdated.Invoke(this, new InputResultEventArgs(new IMEString(_textField.Text)));
+            };
+
+            _inputPanel.AddSubview(_textField);
+
+            _okButton = new UIButton(UIButtonType.Plain);
+            _okButton.Frame = new CGRect(_bounds.Width - 80, 0, 80, InputPanelHeight);
+            _okButton.SetTitle(InputPanelConfirmText ?? "OK", UIControlState.Normal);
+            _okButton.SetTitleColor(UIColor.Black, UIControlState.Normal);
+            _okButton.SetTitleColor(UIColor.Black, UIControlState.Focused);
+            _okButton.BackgroundColor = UIColor.LightGray;
+            _okButton.TouchUpInside += (o, e) =>
+            {
+                StopTextInput();
+            };
+
+            _inputPanel.AddSubview(_okButton);
+
+            gameViewController.Add(_inputPanel);
+            _inputPanel.Hidden = true;
 
             UIKeyboard.Notifications.ObserveWillShow((s, e) =>
             {
                 _virtualKeyboardHeight = (int)(e.FrameEnd.Height * UIScreen.MainScreen.Scale);
+                _inputPanel.Frame = new CGRect(0, _bounds.Height - e.FrameEnd.Height - _inputPanel.Frame.Height, _bounds.Width, InputPanelHeight);
             });
 
             UIKeyboard.Notifications.ObserveWillHide((s, e) =>
             {
                 _virtualKeyboardHeight = 0;
+                _inputPanel.Frame = new CGRect(0, _bounds.Height - _inputPanel.Frame.Height, _bounds.Width, InputPanelHeight);
             });
         }
 
         public override event EventHandler<TextCompositionEventArgs> TextComposition;
         public override event EventHandler<TextInputEventArgs> TextInput;
+        public override event EventHandler<InputResultEventArgs> ResultTextUpdated;
 
         public override int VirtualKeyboardHeight { get { return _virtualKeyboardHeight; } }
 
@@ -110,42 +100,16 @@ namespace Microsoft.Xna.Framework.iOS.Input
             return false;
         }
 
-        private void TextField_TextChanged(object sender, EventArgs e)
-        {
-            // Mimic a CompositionEnd event
-            if (TextComposition != null)
-                TextComposition.Invoke(this, new TextCompositionEventArgs(IMEString.Empty, 0));
-
-            foreach (var c in textField.Text)
-                if (TextInput != null)
-                    TextInput.Invoke(this, new TextInputEventArgs(c, KeyboardUtil.ToXna(c)));
-
-            textField.Text = string.Empty;
-        }
-
-        const char SIX_PER_EM_SPACE = (char)8198;
-        private void TextField_TextCompositionChanged(object sender, EventArgs e)
-        {
-            var textRange = textField.MarkedTextRange;
-            var compStr = textField.TextInRange(textRange);
-                compStr = compStr.Replace(SIX_PER_EM_SPACE, ' ');
-            if (TextComposition != null)
-                TextComposition.Invoke(this, new TextCompositionEventArgs(new IMEString(compStr), compStr.Length));
-        }
-
-        private void TextField_DeleteBackward(object sender, EventArgs e)
-        {
-            var key = Keys.Back;
-            if (TextInput != null)
-                TextInput.Invoke(this, new TextInputEventArgs((char)key, key));
-        }
-
         public override void StartTextInput()
         {
             if (IsTextInputActive)
                 return;
 
-            textField.BecomeFirstResponder();
+            _okButton.SetTitle(InputPanelConfirmText ?? "OK", UIControlState.Normal);
+            _inputPanel.Hidden = false;
+            _textField.Text = CurrentResultText;
+            _textField.SelectAll(_textField);
+            _textField.BecomeFirstResponder();
             IsTextInputActive = true;
         }
 
@@ -154,12 +118,18 @@ namespace Microsoft.Xna.Framework.iOS.Input
             if (!IsTextInputActive)
                 return;
 
-            textField.Text = string.Empty;
-            textField.ResignFirstResponder();
+            _textField.EndEditing(true);
+
+            if (ResultTextUpdated != null)
+                ResultTextUpdated.Invoke(this, new InputResultEventArgs(new IMEString(_textField.Text), true));
+
+            _textField.Text = string.Empty;
+            _inputPanel.ResignFirstResponder();
+            _inputPanel.Hidden = true;
+
+            gameViewController.View.BecomeFirstResponder();
             IsTextInputActive = false;
         }
-
-        const int KeyboardHideOffset = 20;
 
         internal void Update()
         {
@@ -170,7 +140,7 @@ namespace Microsoft.Xna.Framework.iOS.Input
             {
                 if (TouchLocationState.Pressed == touchLocation.State)
                 {
-                    if (touchLocation.Position.Y < ((mainWindow.GetFrame().Height * UIScreen.MainScreen.Scale - _virtualKeyboardHeight) - KeyboardHideOffset))
+                    if (touchLocation.Position.Y < ((mainWindow.GetFrame().Height * UIScreen.MainScreen.Scale - _virtualKeyboardHeight) - InputPanelHeight))
                         StopTextInput();
                 }
             }

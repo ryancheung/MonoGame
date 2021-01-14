@@ -7,6 +7,7 @@ using Android.App;
 using Android.Content;
 using Android.OS;
 using Android.Views;
+using Android.Views.InputMethods;
 
 namespace Microsoft.Xna.Framework
 {
@@ -28,14 +29,18 @@ namespace Microsoft.Xna.Framework
         private int  _KeyboardHeight;
         public int KeyboardHeight { get { return _KeyboardHeight; } }
 
-		/// <summary>
-		/// OnCreate called when the activity is launched from cold or after the app
-		/// has been killed due to a higher priority app needing the memory
-		/// </summary>
-		/// <param name='savedInstanceState'>
-		/// Saved instance state.
-		/// </param>
-		protected override void OnCreate (Bundle savedInstanceState)
+        internal InputMethodManager InputMethodManager;
+        public event EventHandler<EventArgs> SoftKeyboardShown;
+        public event EventHandler<EventArgs> SoftKeyboardHidden;
+
+        /// <summary>
+        /// OnCreate called when the activity is launched from cold or after the app
+        /// has been killed due to a higher priority app needing the memory
+        /// </summary>
+        /// <param name='savedInstanceState'>
+        /// Saved instance state.
+        /// </param>
+        protected override void OnCreate (Bundle savedInstanceState)
 		{
             RequestWindowFeature(WindowFeatures.NoTitle);
             base.OnCreate(savedInstanceState);
@@ -101,6 +106,8 @@ namespace Microsoft.Xna.Framework
 
         public void OnGlobalLayout()
         {
+            InputMethodManager = (InputMethodManager)GetSystemService(InputMethodService);
+
             WindowManager.DefaultDisplay.GetSize(_ScreenSize);
             Window.DecorView.GetWindowVisibleDisplayFrame(_VisibleFrameRect);
 
@@ -111,6 +118,17 @@ namespace Microsoft.Xna.Framework
             }
 
             _KeyboardHeight = _gameViewSize.Y - _VisibleFrameRect.Height();
+
+            if (_KeyboardHeight < 100)
+            {
+                if (SoftKeyboardHidden != null)
+                    SoftKeyboardHidden.Invoke(this, null);
+            }
+            else
+            {
+                if (SoftKeyboardShown != null)
+                    SoftKeyboardShown.Invoke(this, null);
+            }
         }
     }
 

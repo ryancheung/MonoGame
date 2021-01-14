@@ -32,6 +32,7 @@ namespace Microsoft.Xna.Framework.Input
 
         public override event EventHandler<TextCompositionEventArgs> TextComposition;
         public override event EventHandler<TextInputEventArgs> TextInput;
+        public override event EventHandler<InputResultEventArgs> ResultTextUpdated;
 
         private int _virtualKeyboardHeight;
         public override int VirtualKeyboardHeight { get { return _virtualKeyboardHeight; } }

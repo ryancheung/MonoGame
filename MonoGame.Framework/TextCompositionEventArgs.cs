@@ -57,4 +57,30 @@ namespace Microsoft.Xna.Framework
         /// </summary>
         public readonly int CandidateSelection;
     }
+
+    /// <summary>
+    /// Arguments for the <see cref="ImmService.ResultTextUpdated" /> event.
+    /// </summary>
+    public struct InputResultEventArgs
+    {
+        /// <summary>
+        /// Construct a text composition event.
+        /// </summary>
+        public InputResultEventArgs(IMEString inputResult, bool finished = false)
+        {
+            InputResult = inputResult;
+            InputFinished = finished;
+        }
+
+        /// <summary>
+        /// Input result text for Mobile.
+        /// </summary>
+        public readonly IMEString InputResult;
+
+
+        /// <summary>
+        /// The text input is finished.
+        /// </summary>
+        public readonly bool InputFinished;
+    }
 }

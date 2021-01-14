@@ -20,6 +20,7 @@ namespace Microsoft.Xna.Framework.Input
 
         public override event EventHandler<TextCompositionEventArgs> TextComposition;
         public override event EventHandler<TextInputEventArgs> TextInput;
+        public override event EventHandler<InputResultEventArgs> ResultTextUpdated;
 
         public void OnTextInput(char charInput, Keys key)
         {

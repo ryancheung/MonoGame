@@ -21,6 +21,11 @@ namespace Microsoft.Xna.Framework
         public static bool ShowOSImeWindow { get; set; }
 
         /// <summary>
+        /// Moible input pnale confirm button text.
+        /// </summary>
+        public static string InputPanelConfirmText { get; set; }
+
+        /// <summary>
         /// Enable the system IMM service to support composited character input.
         /// This should be called when you expect text input from a user and you support languages
         /// that require an IME (Input Method Editor).
@@ -43,6 +48,11 @@ namespace Microsoft.Xna.Framework
         public bool IsTextInputActive { get; protected set; }
 
         /// <summary>
+        /// Result text that set for mobile platforms.
+        /// </summary>
+        public string CurrentResultText { get; set; }
+
+        /// <summary>
         /// Set the position of the candidate window rendered by the OS.
         /// Let the OS render the candidate window by setting <see cref="ShowOSImeWindow"/> to <c>true</c>.
         ///
@@ -59,5 +69,11 @@ namespace Microsoft.Xna.Framework
         /// Invoked when the IMM service generates a composition result.
         /// </summary>
         public abstract event EventHandler<TextInputEventArgs> TextInput;
+
+        /// <summary>
+        /// Invoked when the IMM service generates a result.
+        /// This event only works in Mobile platforms.
+        /// </summary>
+        public abstract event EventHandler<InputResultEventArgs> ResultTextUpdated;
     }
 }
