@@ -7,11 +7,12 @@ using Android.App;
 using Android.Content;
 using Android.OS;
 using Android.Views;
+using Android.Views.InputMethods;
 
 namespace Microsoft.Xna.Framework
 {
 	[CLSCompliant(false)]
-    public class AndroidGameActivity : Activity
+    public class AndroidGameActivity : Activity, ViewTreeObserver.IOnGlobalLayoutListener
     {
         internal Game Game { private get; set; }
 
@@ -21,14 +22,25 @@ namespace Microsoft.Xna.Framework
         public bool AutoPauseAndResumeMediaPlayer = true;
         public bool RenderOnUIThread = true; 
 
-		/// <summary>
-		/// OnCreate called when the activity is launched from cold or after the app
-		/// has been killed due to a higher priority app needing the memory
-		/// </summary>
-		/// <param name='savedInstanceState'>
-		/// Saved instance state.
-		/// </param>
-		protected override void OnCreate (Bundle savedInstanceState)
+        private Android.Graphics.Point _ScreenSize = new Android.Graphics.Point();
+        public Android.Graphics.Point ScreenSize { get { return _ScreenSize; } }
+        private Point _gameViewSize;
+        private Android.Graphics.Rect _VisibleFrameRect = new Android.Graphics.Rect();
+        private int  _KeyboardHeight;
+        public int KeyboardHeight { get { return _KeyboardHeight; } }
+
+        internal InputMethodManager InputMethodManager;
+        public event EventHandler<EventArgs> SoftKeyboardShown;
+        public event EventHandler<EventArgs> SoftKeyboardHidden;
+
+        /// <summary>
+        /// OnCreate called when the activity is launched from cold or after the app
+        /// has been killed due to a higher priority app needing the memory
+        /// </summary>
+        /// <param name='savedInstanceState'>
+        /// Saved instance state.
+        /// </param>
+        protected override void OnCreate (Bundle savedInstanceState)
 		{
             RequestWindowFeature(WindowFeatures.NoTitle);
             base.OnCreate(savedInstanceState);
@@ -91,6 +103,33 @@ namespace Microsoft.Xna.Framework
             Game = null;
 			base.OnDestroy ();
 		}
+
+        public void OnGlobalLayout()
+        {
+            InputMethodManager = (InputMethodManager)GetSystemService(InputMethodService);
+
+            WindowManager.DefaultDisplay.GetSize(_ScreenSize);
+            Window.DecorView.GetWindowVisibleDisplayFrame(_VisibleFrameRect);
+
+            if (CurrentFocus is MonoGameAndroidGameView)
+            {
+                var gameView = (CurrentFocus as MonoGameAndroidGameView);
+                _gameViewSize = new Point(gameView.Width, gameView.Height);
+            }
+
+            _KeyboardHeight = _gameViewSize.Y - _VisibleFrameRect.Height();
+
+            if (_KeyboardHeight < 100)
+            {
+                if (SoftKeyboardHidden != null)
+                    SoftKeyboardHidden.Invoke(this, null);
+            }
+            else
+            {
+                if (SoftKeyboardShown != null)
+                    SoftKeyboardShown.Invoke(this, null);
+            }
+        }
     }
 
 	[CLSCompliant(false)]

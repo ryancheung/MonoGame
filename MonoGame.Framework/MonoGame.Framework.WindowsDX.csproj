@@ -51,11 +51,14 @@
     <Compile Include="Platform\Windows\WinFormsGameForm.cs" />
     <Compile Include="Platform\Windows\WinFormsGamePlatform.cs" />
     <Compile Include="Platform\Windows\WinFormsGameWindow.cs" />
+    <Compile Include="Platform\Windows\Input\WinFormsImeHandler.cs" />
   </ItemGroup> 
 
   <ItemGroup>
     <Compile Include="..\ThirdParty\StbImageSharp\src\**\*.cs" LinkBase="Utilities\StbImageSharp" />
     <Compile Include="..\ThirdParty\StbImageWriteSharp\src\**\*.cs" LinkBase="Utilities\StbImageWriteSharp" />
+
+    <Compile Include="..\ThirdParty\ImeSharp\ImeSharp\**\*.cs" LinkBase="Utilities\ImeSharp" />
   </ItemGroup>
 
   <ItemGroup>
@@ -78,6 +81,7 @@
     <PackageReference Version="4.0.1" Include="SharpDX.MediaFoundation" />
     <PackageReference Version="4.0.1" Include="SharpDX.XAudio2" />
     <PackageReference Version="4.0.1" Include="SharpDX.XInput" />
+    <PackageReference Version="0.6.0" Include="TsfSharp" />
   </ItemGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'net452' ">

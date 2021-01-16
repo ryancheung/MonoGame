@@ -26,10 +26,13 @@ namespace Microsoft.Xna.Framework
         private int _isExiting;
         private SdlGameWindow _view;
 
+        private SdlImeHandler _imeHandler;
+
         public SdlGamePlatform(Game game)
             : base(game)
         {
             _game = game;
+
             _keys = new List<Keys>();
             Keyboard.SetKeys(_keys);
 
@@ -60,6 +63,8 @@ namespace Microsoft.Xna.Framework
 
             GamePad.InitDatabase();
             Window = _view = new SdlGameWindow(_game);
+            _imeHandler = new SdlImeHandler(game);
+            Window.ImmService = _imeHandler;
         }
 
         public override void BeforeInitialize()
@@ -140,7 +145,13 @@ namespace Microsoft.Xna.Framework
                         char character = (char)ev.Key.Keysym.Sym;
                         _view.OnKeyDown(new InputKeyEventArgs(key));
                         if (char.IsControl(character))
-                            _view.OnTextInput(new TextInputEventArgs(character, key));
+                        {
+                            if (_view.IsTextInputHandled)
+                                _view.OnTextInput(new TextInputEventArgs(character, key));
+
+                            if (_imeHandler.IsTextInputActive)
+                                _imeHandler.OnTextInput(character, key);
+                        }
                         break;
                     }
                     case Sdl.EventType.KeyUp:
@@ -150,58 +161,30 @@ namespace Microsoft.Xna.Framework
                         _view.OnKeyUp(new InputKeyEventArgs(key));
                         break;
                     }
-                    case Sdl.EventType.TextInput:
-                        if (_view.IsTextInputHandled)
+                    case Sdl.EventType.TextEditing:
+                    {
+                        unsafe
                         {
-                            int len = 0;
-                            int utf8character = 0; // using an int to encode multibyte characters longer than 2 bytes
-                            byte currentByte = 0;
-                            int charByteSize = 0; // UTF8 char lenght to decode
-                            int remainingShift = 0;
-                            unsafe
+                            var cursorPosition = ev.Edit.Start;
+                            var compositionText = SDLBufferToIMEString(ev.Edit.Text);
+                            _imeHandler.OnTextComposition(compositionText, cursorPosition);
+                        }
+                        break;
+                    }
+                    case Sdl.EventType.TextInput:
+                        // Mimic a CompositionEnd event
+                        _imeHandler.OnTextComposition(IMEString.Empty, 0);
+
+                        unsafe
+                        {
+                            var text = SDLBufferToIMEString(ev.Text.Text); // This way to support emoji.
+                            foreach (var c in text)
                             {
-                                while ((currentByte = Marshal.ReadByte((IntPtr)ev.Text.Text, len)) != 0)
-                                {
-                                    // we're reading the first UTF8 byte, we need to check if it's multibyte
-                                    if (charByteSize == 0)
-                                    {
-                                        if (currentByte < 192)
-                                            charByteSize = 1;
-                                        else if (currentByte < 224)
-                                            charByteSize = 2;
-                                        else if (currentByte < 240)
-                                            charByteSize = 3;
-                                        else
-                                            charByteSize = 4;
+                                _imeHandler.OnTextInput(c, KeyboardUtil.ToXna(c));
 
-                                        utf8character = 0;
-                                        remainingShift = 4;
-                                    }
-
-                                    // assembling the character
-                                    utf8character <<= 8;
-                                    utf8character |= currentByte;
-
-                                    charByteSize--;
-                                    remainingShift--;
-
-                                    if (charByteSize == 0) // finished decoding the current character
-                                    {
-                                        utf8character <<= remainingShift * 8; // shifting it to full UTF8 scope
-
-                                        // SDL returns UTF8-encoded characters while C# char type is UTF16-encoded (and limited to the 0-FFFF range / does not support surrogate pairs)
-                                        // so we need to convert it to Unicode codepoint and check if it's within the supported range
-                                        int codepoint = UTF8ToUnicode(utf8character);
-
-                                        if (codepoint >= 0 && codepoint < 0xFFFF)
-                                        {
-                                            _view.OnTextInput(new TextInputEventArgs((char)codepoint, KeyboardUtil.ToXna(codepoint)));
-                                            // UTF16 characters beyond 0xFFFF are not supported (and would require a surrogate encoding that is not supported by the char type)
-                                        }
-                                    }
-
-                                    len++;
-                                }
+                                // Forward text input event to GameWindow.TextInput for backward compability.
+                                if (_view.IsTextInputHandled)
+                                    _view.OnTextInput(new TextInputEventArgs((char)c, KeyboardUtil.ToXna(c)));
                             }
                         }
                         break;
@@ -257,6 +240,34 @@ namespace Microsoft.Xna.Framework
                 return (byte1 % 0x8) * 0x40 * 0x40 * 0x40 + (byte2 % 0x40) * 0x40 * 0x40 + (byte3 % 0x40) * 0x40 + (byte4 % 0x40);
             else
                 return -1;
+        }
+
+        const int BufferSize = 1024;
+        private byte[] _byteBuffer = new byte[BufferSize];
+        private int _byteCount;
+
+        private char[] _charBuffer = new char[BufferSize / 2];
+        private int _charCount;
+
+        private unsafe IMEString SDLBufferToIMEString(byte* text, int maxSize = 128)
+        {
+            Array.Clear(_byteBuffer, 0, _byteCount);
+
+            _byteCount = 0;
+            for (int i = 0; i < maxSize; i++)
+            {
+                if (text[i] == 0)
+                    break;
+
+                _byteBuffer[i] = text[i];
+                _byteCount++;
+            }
+
+            Array.Clear(_charBuffer, 0, _charCount);
+
+            _charCount = System.Text.Encoding.UTF8.GetChars(_byteBuffer, 0, _byteCount, _charBuffer, 0);
+
+            return new IMEString(_charBuffer, _charCount);
         }
 
         public override void StartRunLoop()
